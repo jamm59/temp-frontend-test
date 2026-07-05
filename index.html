@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LibraryMS — Sign In</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5c1.5-1 4-1.5 6-1.5s4.5.5 6 1.5v14c-1.5-1-4-1.5-6-1.5s-4.5.5-6 1.5V5z"/><path d="M22 5c-1.5-1-4-1.5-6-1.5S11.5 4 10 5"/></svg>
+    <span>LibraryMS</span>
+  </div>
+
+  <div class="login-card">
+    <h1 class="login-title">Sign In</h1>
+    <p class="login-sub">Enter your credentials to access your account</p>
+
+    <p class="error-banner" id="error-msg"></p>
+
+    <form id="login-form">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="name@example.com" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" id="submit-btn">
+        Sign In <span id="submit-icon">&#8594;</span>
+      </button>
+    </form>
+
+    <div class="divider-label">Quick access</div>
+    <div class="quick-access">
+      <button type="button" class="btn btn-outline btn-sm" style="justify-content:center;" id="librarian-quick">Librarian Login</button>
+      <button type="button" class="btn btn-ghost btn-sm" style="justify-content:center;" id="member-quick">Member Login</button>
+    </div>
+
+    <button type="button" class="browse-link" id="browse-link">Browse Books Without Signing In</button>
+
+    <div class="login-foot">
+      New to the library? <a id="create-account-link">Create an account</a>
+    </div>
+
+    <p class="demo-note">
+      Demo accounts — admin@lmui.edu / admin123 &middot; librarian@lmui.edu / librarian123 &middot; student@lmui.edu / student123
+    </p>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+<script>
+  if (Auth.getToken()) window.location.href = 'dashboard.html';
+
+  document.getElementById('browse-link').innerHTML = ICON.eye + ' Browse Books Without Signing In';
+
+  async function doLogin(email, password) {
+    const errorEl = document.getElementById('error-msg');
+    const btn = document.getElementById('submit-btn');
+    errorEl.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    try {
+      const { token, user } = await API.login(email, password);
+      Auth.setSession(token, user);
+      window.location.href = 'dashboard.html';
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.classList.add('show');
+      btn.innerHTML = 'Sign In <span>&#8594;</span>';
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById('login-form').addEventListener('submit', e => {
+    e.preventDefault();
+    doLogin(document.getElementById('email').value.trim(), document.getElementById('password').value);
+  });
+
+  document.getElementById('librarian-quick').addEventListener('click', () => doLogin('librarian@lmui.edu', 'librarian123'));
+  document.getElementById('member-quick').addEventListener('click', () => doLogin('student@lmui.edu', 'student123'));
+
+  document.getElementById('browse-link').addEventListener('click', () => {
+    showToast('Guest browsing isn\'t available in this demo — please sign in.');
+  });
+  document.getElementById('create-account-link').addEventListener('click', () => {
+    showToast('Self sign-up isn\'t enabled in this demo — try one of the accounts below.');
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book Management — LibraryMS</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<main class="main">
+  <div class="page-head">
+    <h1>Book Management</h1>
+    <p id="count-line">Loading books…</p>
+  </div>
+
+  <div class="page-head-row">
+    <div class="view-toggle">
+      <button class="btn-icon active" id="view-list-btn" title="List view"></button>
+      <button class="btn-icon" id="view-grid-btn" title="Grid view"></button>
+    </div>
+    <button class="btn btn-primary" onclick="openAddBook()">+ Add Book</button>
+  </div>
+
+  <div class="search-input-wrap">
+    <span id="search-icon"></span>
+    <input type="text" id="search" placeholder="Search by title, author, or ISBN...">
+  </div>
+
+  <div class="filter-row">
+    <select class="filter-select" id="category-filter">
+      <option value="">All Categories</option>
+    </select>
+    <button class="toggle-chip" id="available-toggle">Available Only</button>
+  </div>
+
+  <div class="card">
+    <div class="card-scroll" id="list-view">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Title &amp; Author</th><th>ISBN</th><th>Category</th><th>Copies</th><th>Available</th><th></th></tr>
+        </thead>
+        <tbody id="book-rows"><tr><td colspan="7" class="hint" style="padding:20px;">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="book-grid" id="grid-view" style="display:none; padding:18px;"></div>
+    <div id="empty" class="empty-state" style="display:none;">
+      <div class="icon-circle" id="empty-icon"></div>
+      <div style="font-weight:700; color:var(--text);">No matches found</div>
+      <p>Try a different search term or filter.</p>
+    </div>
+  </div>
+</main>
+
+<div class="overlay" id="book-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title">Add a book</h3>
+      <button class="modal-close" onclick="closeModal('book-modal')">&times;</button>
+    </div>
+    <form id="book-form">
+      <div class="field">
+        <label for="title">Title</label>
+        <input type="text" id="title" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="author">Author</label>
+          <input type="text" id="author" required>
+        </div>
+        <div class="field">
+          <label for="category">Category</label>
+          <input type="text" id="category" placeholder="e.g. Fiction" required>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="isbn">ISBN</label>
+          <input type="text" id="isbn" placeholder="978-...">
+        </div>
+        <div class="field">
+          <label for="copies">Number of copies</label>
+          <input type="number" id="copies" min="1" value="1" required>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Save book</button>
+    </form>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+<script>
+  Auth.requireLogin();
+  renderChrome('books.html', 'Library Management');
+  document.getElementById('search-icon').outerHTML = ICON.search;
+  document.getElementById('view-list-btn').innerHTML = ICON.list;
+  document.getElementById('view-grid-btn').innerHTML = ICON.grid;
+  document.getElementById('empty-icon').innerHTML = ICON.book;
+
+  let editingId = null;
+  let currentView = 'list';
+  let allBooks = [];
+
+  function openAddBook() {
+    editingId = null;
+    document.getElementById('modal-title').textContent = 'Add a book';
+    document.getElementById('book-form').reset();
+    document.getElementById('copies').value = 1;
+    openModal('book-modal');
+  }
+
+  function openEditBook(id) {
+    const b = allBooks.find(x => x.id === id);
+    if (!b) return;
+    editingId = id;
+    document.getElementById('modal-title').textContent = 'Edit book';
+    document.getElementById('title').value = b.title;
+    document.getElementById('author').value = b.author;
+    document.getElementById('category').value = b.category;
+    document.getElementById('isbn').value = b.isbn || '';
+    document.getElementById('copies').value = b.copies;
+    openModal('book-modal');
+  }
+
+  async function removeBook(id) {
+    if (!confirm('Remove this book from the catalog?')) return;
+    try { await API.deleteBook(id); showToast('Book removed.'); render(); }
+    catch (err) { showToast(err.message); }
+  }
+
+  document.getElementById('book-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const payload = {
+      title: document.getElementById('title').value.trim(),
+      author: document.getElementById('author').value.trim(),
+      category: document.getElementById('category').value.trim(),
+      isbn: document.getElementById('isbn').value.trim(),
+      copies: Number(document.getElementById('copies').value),
+    };
+    try {
+      if (editingId) { await API.updateBook(editingId, payload); showToast('Book updated.'); }
+      else { await API.addBook(payload); showToast('Book added to catalog.'); }
+      closeModal('book-modal');
+      render();
+    } catch (err) { showToast(err.message); }
+  });
+
+  document.getElementById('view-list-btn').addEventListener('click', () => setView('list'));
+  document.getElementById('view-grid-btn').addEventListener('click', () => setView('grid'));
+  function setView(view) {
+    currentView = view;
+    document.getElementById('view-list-btn').classList.toggle('active', view === 'list');
+    document.getElementById('view-grid-btn').classList.toggle('active', view === 'grid');
+    document.getElementById('list-view').style.display = view === 'list' ? 'block' : 'none';
+    document.getElementById('grid-view').style.display = view === 'grid' ? 'grid' : 'none';
+  }
+
+  let availableOnly = false;
+  document.getElementById('available-toggle').addEventListener('click', () => {
+    availableOnly = !availableOnly;
+    document.getElementById('available-toggle').classList.toggle('active', availableOnly);
+    render();
+  });
+
+  document.getElementById('category-filter').addEventListener('change', render);
+
+  let searchTimer;
+  document.getElementById('search').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(render, 200);
+  });
+
+  function bookRowHtml(b, index) {
+    return `
+      <tr>
+        <td class="row-num">${index + 1}</td>
+        <td>
+          <div class="cell-title">${escapeHtml(b.title)}</div>
+          <div class="cell-sub">${escapeHtml(b.author)}</div>
+        </td>
+        <td class="mono hint">${escapeHtml(b.isbn || '—')}</td>
+        <td><span class="pill pill-blue">${escapeHtml(b.category)}</span></td>
+        <td>${b.copies}</td>
+        <td>${b.available > 0 ? `<span class="pill pill-green">${b.available} free</span>` : `<span class="pill pill-red">None free</span>`}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button class="btn btn-ghost btn-sm" onclick="openEditBook(${b.id})">Edit</button>
+          <button class="btn btn-danger-ghost btn-sm" onclick="removeBook(${b.id})">Delete</button>
+        </td>
+      </tr>`;
+  }
+
+  function bookTileHtml(b) {
+    return `
+      <div class="book-tile">
+        <div class="cell-title">${escapeHtml(b.title)}</div>
+        <div class="cell-sub">${escapeHtml(b.author)}</div>
+        <div class="tile-foot">
+          <span class="pill pill-blue">${escapeHtml(b.category)}</span>
+          ${b.available > 0 ? `<span class="pill pill-green">${b.available}/${b.copies} free</span>` : `<span class="pill pill-red">None free</span>`}
+        </div>
+        <div class="tile-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openEditBook(${b.id})">Edit</button>
+          <button class="btn btn-danger-ghost btn-sm" onclick="removeBook(${b.id})">Delete</button>
+        </div>
+      </div>`;
+  }
+
+  async function render() {
+    const q = document.getElementById('search').value.trim();
+    allBooks = await API.getBooks();
+
+    // Populate category filter options once categories are known
+    const categorySelect = document.getElementById('category-filter');
+    const cats = [...new Set(allBooks.map(b => b.category))].sort();
+    if (categorySelect.dataset.populated !== cats.join(',')) {
+      categorySelect.innerHTML = `<option value="">All Categories</option>` + cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      categorySelect.dataset.populated = cats.join(',');
+    }
+    const selectedCategory = categorySelect.value;
+
+    let rows = allBooks;
+    if (q) {
+      const ql = q.toLowerCase();
+      rows = rows.filter(b => b.title.toLowerCase().includes(ql) || b.author.toLowerCase().includes(ql) || (b.isbn || '').toLowerCase().includes(ql));
+    }
+    if (selectedCategory) rows = rows.filter(b => b.category === selectedCategory);
+    if (availableOnly) rows = rows.filter(b => b.available > 0);
+
+    document.getElementById('count-line').textContent = `Showing ${rows.length} of ${allBooks.length} books`;
+    document.getElementById('empty').style.display = rows.length ? 'none' : 'block';
+
+    document.getElementById('book-rows').innerHTML = rows.map((b, i) => bookRowHtml(b, i)).join('');
+    document.getElementById('grid-view').innerHTML = rows.map(bookTileHtml).join('');
+  }
+
+  render().catch(err => showToast(err.message));
+</script>
+</body>
+</html>

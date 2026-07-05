@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Members Directory — LibraryMS</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<main class="main">
+  <div class="page-head">
+    <h1>Members Directory</h1>
+    <p>Manage library patrons and staff.</p>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <button class="btn btn-primary" onclick="openAddMember()">Add Member</button>
+  </div>
+
+  <div class="search-input-wrap">
+    <span id="search-icon"></span>
+    <input type="text" id="search" placeholder="Search by name, email or ID...">
+  </div>
+
+  <div class="card">
+    <div class="card-scroll">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Member</th><th>Role</th><th>Active Borrows</th><th></th></tr>
+        </thead>
+        <tbody id="member-rows"><tr><td colspan="5" class="hint" style="padding:20px;">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div id="empty" class="empty-state" style="display:none;">
+      <div class="icon-circle" id="empty-icon"></div>
+      <div style="font-weight:700; color:var(--text);">No matches found</div>
+      <p>Try a different search term.</p>
+    </div>
+  </div>
+</main>
+
+<div class="overlay" id="member-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title">Register a member</h3>
+      <button class="modal-close" onclick="closeModal('member-modal')">&times;</button>
+    </div>
+    <form id="member-form">
+      <div class="field">
+        <label for="name">Full name</label>
+        <input type="text" id="name" required>
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="phone">Phone</label>
+          <input type="text" id="phone" placeholder="+237 ...">
+        </div>
+        <div class="field">
+          <label for="role">Role</label>
+          <select id="role">
+            <option>Member</option>
+            <option>Staff</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Save member</button>
+    </form>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+<script>
+  Auth.requireLogin();
+  renderChrome('members.html', 'Library Management');
+  document.getElementById('search-icon').outerHTML = ICON.search;
+  document.getElementById('empty-icon').innerHTML = ICON.people;
+
+  let editingId = null;
+  let allMembers = [];
+
+  function openAddMember() {
+    editingId = null;
+    document.getElementById('modal-title').textContent = 'Register a member';
+    document.getElementById('member-form').reset();
+    openModal('member-modal');
+  }
+
+  function openEditMember(id) {
+    const m = allMembers.find(x => x.id === id);
+    if (!m) return;
+    editingId = id;
+    document.getElementById('modal-title').textContent = 'Edit member';
+    document.getElementById('name').value = m.name;
+    document.getElementById('email').value = m.email;
+    document.getElementById('phone').value = m.phone || '';
+    document.getElementById('role').value = m.role || 'Member';
+    openModal('member-modal');
+  }
+
+  async function removeMember(id) {
+    if (!confirm('Remove this member from the directory?')) return;
+    try { await API.deleteMember(id); showToast('Member removed.'); render(); }
+    catch (err) { showToast(err.message); }
+  }
+
+  document.getElementById('member-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const payload = {
+      name: document.getElementById('name').value.trim(),
+      email: document.getElementById('email').value.trim(),
+      phone: document.getElementById('phone').value.trim(),
+      role: document.getElementById('role').value,
+    };
+    try {
+      if (editingId) { await API.updateMember(editingId, payload); showToast('Member updated.'); }
+      else { await API.addMember(payload); showToast('Member registered.'); }
+      closeModal('member-modal');
+      render();
+    } catch (err) { showToast(err.message); }
+  });
+
+  let searchTimer;
+  document.getElementById('search').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(render, 200);
+  });
+
+  async function render() {
+    const q = document.getElementById('search').value.trim();
+    allMembers = await API.getMembers(q);
+
+    document.getElementById('empty').style.display = allMembers.length ? 'none' : 'block';
+    document.getElementById('member-rows').innerHTML = allMembers.map(m => `
+      <tr>
+        <td class="hint">${m.id}</td>
+        <td>
+          <div class="member-cell">
+            <div class="avatar">${initials(m.name)}</div>
+            <div>
+              <div class="cell-title">${escapeHtml(m.name)}</div>
+              <div class="cell-sub">${escapeHtml(m.email)}</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="pill pill-gray">${escapeHtml(m.role)}</span></td>
+        <td>${m.activeLoans}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button class="btn btn-ghost btn-sm" onclick="openEditMember(${m.id})">Edit</button>
+          <button class="btn btn-danger-ghost btn-sm" onclick="removeMember(${m.id})">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  render().catch(err => showToast(err.message));
+</script>
+</body>
+</html>

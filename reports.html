@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Library Reports — LibraryMS</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<main class="main">
+  <div class="page-head">
+    <h1>Library Reports</h1>
+    <p>Analytics and insights on library operations.</p>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:18px;">
+    <h3 style="margin-bottom:16px;">Most Popular Books</h3>
+    <div id="popular-chart"><p class="hint">Loading…</p></div>
+  </div>
+
+  <div class="alert" id="overdue-alert" style="margin-bottom:18px; display:none;">
+    <span id="alert-icon"></span>
+    <div>
+      <div class="alert-title">Action Required: Overdue Items</div>
+      <div class="alert-num" id="overdue-num">0</div>
+    </div>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:18px;">
+    <h3 style="margin-bottom:14px;">Books by category</h3>
+    <div id="category-bars"><p class="hint">Loading…</p></div>
+  </div>
+
+  <div class="card card-pad">
+    <h3 style="margin-bottom:14px;">Overdue detail</h3>
+    <div class="card-scroll">
+      <table>
+        <thead><tr><th>Book</th><th>Member</th><th>Due date</th><th>Days late</th><th>Fine so far</th></tr></thead>
+        <tbody id="overdue-rows"><tr><td colspan="5" class="hint">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+<script>
+  Auth.requireLogin();
+  renderChrome('reports.html', 'Library Management');
+  document.getElementById('alert-icon').innerHTML = ICON.warning;
+
+  async function load() {
+    const [summary, categories, overdue, popular] = await Promise.all([
+      API.getSummary(), API.getCategories(), API.getOverdue(), API.getPopular(),
+    ]);
+
+    // Bar chart: most popular books
+    const maxTimes = Math.max(1, ...popular.map(p => p.times_borrowed));
+    document.getElementById('popular-chart').innerHTML = popular.length ? `
+      <div class="bars-wrap bar-axis">
+        ${popular.map(p => `
+          <div class="bar-col">
+            <div class="bar-shape" style="height:${(p.times_borrowed / maxTimes * 100).toFixed(0)}%;" title="${p.times_borrowed} times"></div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="display:flex; gap:18px; margin-top:4px;">
+        ${popular.map(p => `<div style="flex:1; text-align:center; font-size:0.7rem; color:var(--text-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</div>`).join('')}
+      </div>
+    ` : `<p class="hint">No borrowing history yet.</p>`;
+
+    // Overdue alert
+    document.getElementById('overdue-alert').style.display = summary.overdueCount ? 'flex' : 'none';
+    document.getElementById('overdue-num').textContent = summary.overdueCount;
+
+    // Category bars
+    const maxCount = Math.max(1, ...categories.map(c => c.count));
+    document.getElementById('category-bars').innerHTML = categories.length ? categories.map(c => `
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+        <div style="width:110px; font-size:0.85rem; color:var(--text-soft);">${escapeHtml(c.category)}</div>
+        <div style="flex:1; background:var(--bg); border-radius:6px; overflow:hidden; height:14px;">
+          <div style="width:${(c.count / maxCount * 100).toFixed(0)}%; background:var(--blue); height:100%;"></div>
+        </div>
+        <div style="width:24px; text-align:right; font-size:0.8rem;" class="mono">${c.count}</div>
+      </div>
+    `).join('') : `<p class="hint">No books in the catalog yet.</p>`;
+
+    // Overdue detail table
+    document.getElementById('overdue-rows').innerHTML = overdue.length ? overdue.map(r => `
+      <tr>
+        <td class="cell-title">${escapeHtml(r.book_title)}</td>
+        <td>${escapeHtml(r.member_name)}</td>
+        <td>${fmtDate(r.due_date)}</td>
+        <td><span class="pill pill-red">${r.daysLate} day${r.daysLate === 1 ? '' : 's'}</span></td>
+        <td class="mono">${r.fine} FCFA</td>
+      </tr>
+    `).join('') : `<tr><td colspan="5" class="hint">Nothing overdue right now.</td></tr>`;
+  }
+
+  load().catch(err => showToast(err.message));
+</script>
+</body>
+</html>
