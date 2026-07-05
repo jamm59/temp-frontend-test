@@ -5,7 +5,7 @@
    calls these functions and works with plain JS objects/promises.
    ========================================================================== */
 
-const API_BASE = 'https://backend-library-server.netlify.app/'; // same-origin: the backend serves the frontend too
+const API_BASE = 'https://temp-server-project.onrender.com'; // same-origin: the backend serves the frontend too
 
 const Auth = {
   TOKEN_KEY: 'lmui_token',
